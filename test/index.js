@@ -27,7 +27,7 @@ describe('susie', () => {
         server.connection({ port: 4000 });
         server.register(require('../'), (err) => {
 
-            if (err){
+            if (err) {
                 throw err;
             }
 
@@ -275,6 +275,38 @@ describe('susie', () => {
 
             expect(res.headers['content-type']).to.equal('text/event-stream; charset=utf-8');
             expect(res.payload).to.equal('id: 1\r\ndata: {"a":1,"b":"2"}\r\n\r\nid: 2\r\ndata: {"a":3,"b":"4"}\r\n\r\nevent: end\r\ndata: \r\n\r\n');
+            done();
+        });
+    });
+
+    it('Allows sending a stream of events of different types through a single channel', (done) => {
+
+        const stream = new PassThrough({ objectMode: true });
+
+        setTimeout(() => {
+
+            stream.write({ event: 'Primary', data: 'first' });
+
+            setTimeout(() => {
+
+                stream.write({ event: 'Secondary', data: 'second' });
+                stream.end();
+            }, 100);
+        }, 100);
+
+        server.route([{
+            method: 'GET',
+            path: '/',
+            handler: function (request, reply) {
+
+                reply.event(stream);
+            }
+        }]);
+
+        server.inject('http://localhost:4000/', (res) => {
+
+            expect(res.headers['content-type']).to.equal('text/event-stream; charset=utf-8');
+            expect(res.payload).to.equal('id: 1\r\ndata: {\"event\":\"Primary\",\"data\":\"first\"}\r\nevent: Primary\r\n\r\nid: 2\r\ndata: {\"event\":\"Secondary\",\"data\":\"second\"}\r\nevent: Secondary\r\n\r\nevent: end\r\ndata: \r\n\r\n');
             done();
         });
     });
